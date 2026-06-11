@@ -2,66 +2,82 @@
 
 ---
 
-## 🎯 Purpose
+## Purpose
 
 Automate the creation of Jira tickets from GitHub issue comments. When a user comments `/jira` on an issue or pull request, this service receives a webhook, validates it, and creates a Jira issue with the comment content.
 
 ---
 
-## 🏗️ Project Architecture
+## Project Architecture
 
 - **Flask API** running on an EC2 instance, exposed via HTTP.
 - **GitHub Webhook** triggers the API when an issue comment is created.
 - **Jira Cloud API** is used to create issues programmatically.
 - **Systemd Service** ensures the Flask app runs as a background service.
-- **Rate Limiting** and **Webhook Signature Validation** for security.
+- **Rate Limiting** and **Webhook Signature Validation** are part of the tracked service baseline. Repo allowlisting, protected metrics, and related hardening paths are follow-up behavior unless the same reviewed slice also includes those supporting files.
 
 ---
 
-## 📑 Specific Objectives
+## Specific Objectives
 
-- Enable non-technical users to create Jira tickets from GitHub by simply commenting `/jira`.
-- Securely automate ticket creation, reducing manual work and errors.
-- Provide a robust, production-ready deployment on AWS EC2.
+- Create Jira tickets from GitHub issue comments that contain `/jira`.
+- Validate webhook signatures before calling Jira, and document repository-scope or hardened runtime settings only when the same reviewed slice includes that behavior.
+- Document the EC2/systemd deployment path without claiming managed production operations.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
+
+The approved public PR3 boundary for this documentation refresh is limited to
+`README.md` and `.env.example`. Treat the broader service hardening paths below as
+branch-local or follow-up material until they are reviewed in the same tracked
+slice.
 
 ```
 jira-ticket-automation-via-github-integration/
 │
-├── deployment/
-│   └── deploy_ec2.sh
+├── deployment/                     # Branch-local / follow-up slice when present
+│   ├── deploy_ec2.sh
+│   └── JiraWebhookService.service
+│
+├── scripts/                        # Branch-local / follow-up slice when present
+│   └── (deployment helper scripts)
 │
 ├── src/
+│   ├── config.py                   # Branch-local / follow-up slice when present
 │   ├── create_jira_ticket.py
+│   ├── health.py                   # Branch-local / follow-up slice when present
 │   ├── jira_webhook_service.py
-│   └── list_projects.py
+│   ├── list_projects.py
+│   ├── logging_config.py           # Branch-local / follow-up slice when present
+│   └── metrics.py                  # Branch-local / follow-up slice when present
+│
+├── tests/                          # Branch-local / follow-up slice when present
+│   └── (test files)
 │
 ├── requirements.txt
-├── .env.example
-└── README.md
+├── .env.example                    # Approved PR3 boundary
+└── README.md                       # Approved PR3 boundary
 ```
 
 ---
 
-## 🏢 Use Case
+## Use Case
 
-A developer or project manager comments `/jira` on a GitHub issue or PR. The service receives the webhook, validates it, and creates a Jira ticket with the comment as the description. The process is seamless and requires no Jira access for the end user.
+A developer or project manager comments `/jira` on a GitHub issue or PR. The tracked baseline is that the service receives the webhook, validates the GitHub signature, and creates a Jira ticket with the comment as the description. Repository allowlisting is follow-up behavior unless it ships in the same reviewed slice.
 
 ---
 
-## 📋 Deliverables
+## Deliverables
 
 - Flask API (`src/jira_webhook_service.py`) for webhook handling and Jira integration.
-- Deployment script (`deployment/deploy_ec2.sh`) for EC2 setup and service management.
 - Example scripts for Jira API usage (`src/create_jira_ticket.py`, `src/list_projects.py`).
+- Deployment and service-management paths are follow-up material unless the same reviewed slice includes `deployment/**`, `scripts/**`, or service unit files.
 - This README file.
 
 ---
 
-## 🛠️ Technologies Used
+## Technologies Used
 
 **Python Libraries:**
 
@@ -72,7 +88,7 @@ A developer or project manager comments `/jira` on a GitHub issue or PR. The ser
 
 **Deployment/Infrastructure:**
 
-- Python 3.12+
+- Python 3.11+
 - systemd
 - AWS EC2 (Ubuntu)
 
@@ -83,9 +99,9 @@ A developer or project manager comments `/jira` on a GitHub issue or PR. The ser
 
 ---
 
-## 💻 Initial Setup
+## Initial Setup
 
-### 📋 Prerequisites
+### Prerequisites
 
 - Active EC2 instance with SSH access (Ubuntu recommended)
 - Git installed on the instance
@@ -94,7 +110,44 @@ A developer or project manager comments `/jira` on a GitHub issue or PR. The ser
 - Jira Cloud account and API token
 - `.env` file with required variables
 
-### ☁️ Create AWS Infrastructure
+### Required `.env` keys
+
+```dotenv
+JIRA_URL=https://your-domain.atlassian.net
+JIRA_EMAIL=your-email@domain.com
+JIRA_API_TOKEN=your_jira_api_token_here
+JIRA_PROJECT_KEY=ENG
+GITHUB_WEBHOOK_SECRET=your_webhook_secret_here
+ALLOWED_GITHUB_REPOS=octo-org/example-repo
+METRICS_TOKEN=your_metrics_token_here
+```
+
+Notes:
+
+- `JIRA_URL` must be an Atlassian Cloud URL: `https://<tenant>.atlassian.net`.
+- `ALLOWED_GITHUB_REPOS` is documented in `.env.example` for branches that also include repository-scope enforcement.
+- `VERSION` is optional and defaults to `1.0.0` when omitted.
+- `METRICS_TOKEN` and `/metrics` protection are follow-up behavior unless the same reviewed slice includes the supporting metrics path.
+
+### Verification and CI
+
+The approved PR3 public slice documents the baseline behavior through
+`README.md` and `.env.example` only. Broader hardening claims such as config
+validation, repository allowlisting, protected metrics, deployment automation,
+and CI checks are follow-up material unless the same reviewed slice also includes
+their supporting files.
+
+| Area | Failure cases covered first | Success path |
+|------|-----------------------------|--------------|
+| Configuration (branch-local `tests/test_config.py` when present) | invalid Jira hosts, placeholder secrets, malformed allowlist entries | validated Atlassian Cloud URL and normalized repository allowlist |
+| Webhook handling (branch-local `tests/test_jira_webhook_service.py` when present) | missing metrics token, repositories outside the allowlist, missing production allowlist | trusted repository with a signed `/jira` comment creates a Jira issue |
+
+If the branch also includes `.github/workflows/jira-service-ci.yml` plus the
+test files above, that broader slice can run `flake8`, `bandit -r src/`, and
+`pytest tests/ -v --tb=short`. Until then, do not treat those paths as checked-in
+verification evidence for the docs-only PR3 boundary.
+
+### Create AWS Infrastructure
 
 #### Step 1: Sign in to AWS
 
@@ -110,9 +163,9 @@ Make sure to select the region where you will create all resources:
 - **US East (N. Virginia)** - `us-east-1`: Most commonly used with lower prices.
 - **South America (São Paulo)** - `sa-east-1`: Better latency if you are in South America.
 
-#### Step 3: 🔐 Create Required Resources Before the Instance
+#### Step 3: Create Required Resources Before the Instance
 
-##### 🔑 Create the key pair (SSH key)
+##### Create the key pair (SSH key)
 
 This key is necessary to connect to the server. It can only be downloaded once.
 
@@ -131,7 +184,7 @@ This key is necessary to connect to the server. It can only be downloaded once.
 
 A `.pem` or `.ppk` file will be downloaded. **Save it carefully**. It's essential for connecting.
 
-##### 👮 Create a Security Group
+##### Create a Security Group
 
 This allows you to define what traffic can access your instance.
 
@@ -155,7 +208,7 @@ This allows you to define what traffic can access your instance.
 
 - **Type:** Custom TCP  
   **Port:** 5000  
-  **Source:** Anywhere (0.0.0.0/0)
+  **Source:** Reverse proxy / load balancer / IPs confiables solamente
 
 6. In **Outbound rules (verify they are present):**
 
@@ -165,7 +218,7 @@ This allows you to define what traffic can access your instance.
 
 7. Click **Create security group**
 
-#### Step 4: 🖥️ Create the EC2 Instance
+#### Step 4: Create the EC2 Instance
 
 ##### Launch new instance
 
@@ -186,15 +239,15 @@ Choose a **Free tier eligible** AMI, such as:
 
 - In **Key pair (login)**, choose:
 
-  - ✅ **Choose existing key pair**
+  - **Choose existing key pair**
   - Select `jira_webhook_service_key_pair`
 
-⚠️ **Make sure you have the `.pem` or `.ppk` file saved**, or you won't be able to connect.
+**Make sure you have the `.pem` or `.ppk` file saved**, or you won't be able to connect.
 
 ##### Configure network and security
 
 - **VPC and subnet**: Leave the default values
-- **Auto-assign public IP**: ✅ Enabled
+- **Auto-assign public IP**: Enabled
 - **Firewall (Security group)**:
 
   - Select **"Select existing security group"**
@@ -221,7 +274,7 @@ Click **Launch instance**
 http://<your-ec2-public-dns>:5000/create_jira_ticket
 ```
 
-#### Step 5: 🔗 Connect to the instance
+#### Step 5: Connect to the instance
 
 ##### From Linux, macOS or Windows with WSL
 
@@ -240,7 +293,7 @@ chmod 400 jira_webhook_service_key_pair.pem
 ssh -i "jira_webhook_service_key_pair.pem" ubuntu@YOUR_PUBLIC_IP
 ```
 
-## 🚀 Installation and Usage
+## Installation and Usage
 
 ### Connect to EC2 Instance
 
@@ -281,7 +334,7 @@ git clone https://github.com/horus0523/jira-ticket-automation-via-github-integra
 cd jira-ticket-automation-via-github-integration
 ```
 
-### 🔑 Generate Your Jira API Token
+### Generate Your Jira API Token
 
 1. Go to [https://id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens) and **sign in to your Jira/Atlassian account** if you are not already logged in
 2. Click **Create API token**
@@ -289,19 +342,24 @@ cd jira-ticket-automation-via-github-integration
 4. Copy the generated token and **save it securely** (you will not be able to see it again)
 5. Open your `.env` file in the project root and set:
    ```
-   JIRA_API_TOKEN=your_generated_token_here
+   JIRA_API_TOKEN=your_jira_api_token_here
    ```
 6. Save the .env file
 
-### 📝 Configure Your Jira Environment Variables
+### Configure Your Jira Environment Variables
 
 After generating your Jira API token, complete your `.env` file with the following variables:
 
 ```dotenv
-JIRA_URL=https://your-domain.atlassian.net         # Your Jira Cloud site URL
-JIRA_EMAIL=your-email@example.com                  # The email you use to log in to Jira
-JIRA_API_TOKEN=your_generated_token_here           # The API token you just created
-JIRA_PROJECT_KEY=YOURPROJECTKEY                    # The key of your Jira project (e.g., SMS, DEV, etc.)
+JIRA_URL=https://acme.atlassian.net                # Your Jira Cloud site URL
+JIRA_EMAIL=jira-bot@acme.example                   # The email used for Jira API access
+JIRA_API_TOKEN=atlassian-api-token                 # The API token you just created
+JIRA_PROJECT_KEY=ENG                               # The key of your Jira project (e.g., ENG, DEV)
+GITHUB_WEBHOOK_SECRET=long-random-webhook-secret
+ALLOWED_GITHUB_REPOS=acme/platform-service         # Required outside local development
+METRICS_TOKEN=long-random-metrics-token
+FLASK_ENV=production
+VERSION=1.0.0                                      # Optional; defaults to 1.0.0 when omitted
 ```
 
 #### How to find each value:
@@ -322,18 +380,15 @@ JIRA_PROJECT_KEY=YOURPROJECTKEY                    # The key of your Jira projec
 **Example .env section:**
 
 ```dotenv
-JIRA_URL=https://your-domain.atlassian.net
-JIRA_EMAIL=your-email@example.com
-JIRA_API_TOKEN=your_api_token
-JIRA_PROJECT_KEY=your_project_key
-
-#GitHub
-GITHUB_WEBHOOK_SECRET=webhook_secret_123456
-
-#Flask
-FLASK_HOST=0.0.0.0
-FLASK_PORT=5000
-FLASK_DEBUG=True
+JIRA_URL=https://acme.atlassian.net
+JIRA_EMAIL=jira-bot@acme.example
+JIRA_API_TOKEN=atlassian-api-token
+JIRA_PROJECT_KEY=ENG
+GITHUB_WEBHOOK_SECRET=long-random-webhook-secret
+ALLOWED_GITHUB_REPOS=acme/platform-service
+METRICS_TOKEN=long-random-metrics-token
+FLASK_ENV=production
+VERSION=1.0.0
 ```
 
 ### Create a New Repository on GitHub
@@ -430,7 +485,7 @@ When prompted for credentials:
 
 Go to your repository on GitHub to confirm that all files were uploaded correctly.
 
-## 🔧 Troubleshooting Authentication
+## Troubleshooting Authentication
 
 ### If you get "Authentication failed":
 
@@ -468,7 +523,7 @@ git config --global credential.helper cache
 chmod +x executable-file
 ```
 
-## 📰 Create the GitHub Webhook
+## Create the GitHub Webhook
 
 1. Go to your repository on GitHub ([https://github.com/](https://github.com/))
 2. Click **Settings > Webhooks > Add webhook** ([GitHub Webhooks documentation](https://docs.github.com/en/webhooks))
@@ -484,7 +539,7 @@ http://<your-ec2-public-ip>:5000/create_jira_ticket
    Select: **Let me select individual events** and check **Issue comments**
 7. Click **Add webhook** to save
 
-## 🚄 Running Scripts
+## Running Scripts
 
 ### Option A: Test the code manually on the AWS Instance (Alternative)
 
@@ -521,7 +576,7 @@ python3 ~/jira-ticket-automation-via-github-integration/src/create_jira_ticket.p
 python3 ~/jira-ticket-automation-via-github-integration/src/jira_webhook_service.py
 ```
 
-### Option B: Deploy with the script (Recommended)
+### Option B: Deploy with the script (Follow-up branch only)
 
 ```bash
 # Make the deployment script executable
@@ -533,35 +588,32 @@ chmod +x ~/jira-ticket-automation-via-github-integration/deployment/deploy_ec2.s
 ~/jira-ticket-automation-via-github-integration/deployment/deploy_ec2.sh
 ```
 
-## ▶️ Test the Integration
+## Test the Integration
 
 - Comment `/jira` on any issue in your GitHub repository
 - Verify that your endpoint receives the request and a ticket is created in
 
 ---
 
-## ⚙️ Configuration Variables
+## Configuration Variables
 
 Example `.env`:
 
 ```dotenv
-JIRA_URL=https://tu-dominio.atlassian.net
-JIRA_EMAIL=tu-correo@ejemplo.com
-JIRA_API_TOKEN=tu_token_api
-JIRA_PROJECT_KEY=CLAVE
-
-#Flask
-FLASK_HOST=0.0.0.0
-FLASK_PORT=5000
-FLASK_DEBUG=True
-
-#GitHub
-GITHUB_WEBHOOK_SECRET=webhook_secret_123456
+JIRA_URL=https://acme.atlassian.net
+JIRA_EMAIL=jira-bot@acme.example
+JIRA_API_TOKEN=atlassian-api-token
+JIRA_PROJECT_KEY=ENG
+GITHUB_WEBHOOK_SECRET=long-random-webhook-secret
+ALLOWED_GITHUB_REPOS=acme/platform-service
+METRICS_TOKEN=long-random-metrics-token
+FLASK_ENV=production
+VERSION=1.0.0
 ```
 
 ---
 
-## 🔧 Useful Commands
+## Useful Commands
 
 - **Start the service:**
 
@@ -594,17 +646,18 @@ GITHUB_WEBHOOK_SECRET=webhook_secret_123456
 
 ---
 
-## 🔒 Security
+## Security
 
-- Webhook requests are validated using `GITHUB_WEBHOOK_SECRET`
-- Rate limiting is enforced to prevent abuse
-- Security Group should restrict access to trusted IPs when possible
-- Never commit your `.env` or secrets to public repositories
-- For production, consider using HTTPS and a reverse proxy (nginx)
+- Webhook requests are validated with `GITHUB_WEBHOOK_SECRET` and the `X-Hub-Signature-256` header.
+- Rate limiting is part of the tracked Flask service baseline.
+- Security groups should restrict access to trusted ingress such as a reverse proxy or load balancer.
+- Never commit `.env` files or secrets to public repositories.
+- Use HTTPS termination and operational monitoring before exposing the service beyond a lab environment.
+- Treat allowlist enforcement and `/metrics` token protection as follow-up behavior unless the same reviewed slice includes the supporting runtime paths.
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 - **Webhook not triggering?**  
   Check your GitHub webhook settings and ensure the event is `issue_comment`.
@@ -617,7 +670,7 @@ GITHUB_WEBHOOK_SECRET=webhook_secret_123456
 
 ---
 
-## 📚 Additional Resources
+## Additional Resources
 
 - [Jira Cloud REST API documentation](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/)
 - [GitHub Webhooks documentation](https://docs.github.com/en/webhooks)
@@ -626,3 +679,13 @@ GITHUB_WEBHOOK_SECRET=webhook_secret_123456
 - [AWS EC2 documentation](https://docs.aws.amazon.com/ec2/)
 
 ---
+### Production bootstrap
+
+- Create `.env` manually and replace every placeholder before any deployment.
+- If the branch includes production bootstrap scripts or service units, review them in the same slice before treating them as checked-in operating guidance.
+
+### Metrics access
+
+Treat metrics endpoint protection and example access commands as follow-up
+material unless the same reviewed slice includes the supporting metrics
+implementation.
