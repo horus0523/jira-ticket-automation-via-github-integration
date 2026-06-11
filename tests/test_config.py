@@ -4,6 +4,8 @@ from src.config import (
     load_runtime_config,
     parse_allowed_repos,
     require_non_placeholder,
+    validate_bind_host,
+    validate_port,
     validate_jira_url,
 )
 
@@ -58,6 +60,8 @@ def test_load_runtime_config_builds_validated_mapping():
     assert config["JIRA_URL"] == "https://team-example.atlassian.net"
     assert config["ALLOWED_GITHUB_REPOS"] == {"owner/repo"}
     assert config["REQUIRE_REPO_ALLOWLIST"] is True
+    assert config["APP_HOST"] == "127.0.0.1"
+    assert config["APP_PORT"] == 5000
 
 
 def test_load_runtime_config_relaxes_repo_allowlist_only_in_development():
@@ -75,3 +79,21 @@ def test_load_runtime_config_relaxes_repo_allowlist_only_in_development():
 
     assert config["ALLOWED_GITHUB_REPOS"] == set()
     assert config["REQUIRE_REPO_ALLOWLIST"] is False
+
+
+def test_validate_bind_host_defaults_to_loopback_and_allows_explicit_broad_bind():
+    assert validate_bind_host(None) == "127.0.0.1"
+    assert validate_bind_host("0.0.0.0") == "0.0.0.0"
+
+
+def test_validate_bind_host_rejects_invalid_values():
+    with pytest.raises(ValueError):
+        validate_bind_host("not-a-host")
+
+
+def test_validate_port_accepts_default_and_rejects_invalid_values():
+    assert validate_port(None) == 5000
+    assert validate_port("8080") == 8080
+
+    with pytest.raises(ValueError):
+        validate_port("70000")

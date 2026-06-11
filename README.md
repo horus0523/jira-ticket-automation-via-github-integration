@@ -118,12 +118,16 @@ JIRA_PROJECT_KEY=ENG
 GITHUB_WEBHOOK_SECRET=your_webhook_secret_here
 ALLOWED_GITHUB_REPOS=octo-org/example-repo
 METRICS_TOKEN=your_metrics_token_here
+APP_HOST=127.0.0.1
+APP_PORT=5000
 ```
 
 Notes:
 
 - `JIRA_URL` must be an Atlassian Cloud URL: `https://<tenant>.atlassian.net`.
 - `ALLOWED_GITHUB_REPOS` configures the repository allowlist.
+- `APP_HOST` defaults to `127.0.0.1`; set `0.0.0.0` only when you explicitly need a non-loopback bind and the network path is restricted.
+- `APP_PORT` defaults to `5000`.
 - `VERSION` is optional and defaults to `1.0.0` when omitted.
 - `METRICS_TOKEN` protects the metrics endpoint when that route is enabled in your deployment.
 

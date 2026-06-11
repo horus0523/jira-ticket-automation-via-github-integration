@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 from urllib.parse import urlparse
@@ -72,6 +73,37 @@ def parse_allowed_repos(value: str | None) -> set[str]:
     return repos
 
 
+def validate_bind_host(value: str | None) -> str:
+    """Validate the Flask bind host with a loopback-safe default."""
+    normalized = (value or "127.0.0.1").strip()
+    if not normalized:
+        return "127.0.0.1"
+
+    if normalized == "localhost":
+        return normalized
+
+    try:
+        ipaddress.ip_address(normalized)
+    except ValueError as exc:
+        raise ValueError("APP_HOST must be a valid IP address or 'localhost'") from exc
+
+    return normalized
+
+
+def validate_port(value: str | int | None) -> int:
+    """Validate the Flask bind port."""
+    normalized = str(value or "5000").strip()
+    try:
+        port = int(normalized)
+    except ValueError as exc:
+        raise ValueError("APP_PORT must be an integer between 1 and 65535") from exc
+
+    if not 1 <= port <= 65535:
+        raise ValueError("APP_PORT must be an integer between 1 and 65535")
+
+    return port
+
+
 def load_runtime_config(environ: dict[str, str] | None = None) -> dict[str, object]:
     """Load and validate runtime configuration from the environment."""
     env = environ or os.environ
@@ -94,6 +126,8 @@ def load_runtime_config(environ: dict[str, str] | None = None) -> dict[str, obje
         "METRICS_TOKEN": require_non_placeholder(
             "METRICS_TOKEN", env.get("METRICS_TOKEN")
         ),
+        "APP_HOST": validate_bind_host(env.get("APP_HOST")),
+        "APP_PORT": validate_port(env.get("APP_PORT")),
         "FLASK_ENV": flask_env,
         "VERSION": env.get("VERSION", "1.0.0"),
     }
