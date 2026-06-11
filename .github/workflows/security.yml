@@ -1,0 +1,28 @@
+name: Security Review
+
+permissions:
+  pull-requests: write
+  contents: read
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+
+      # 2026-04-17 evidence: `git ls-remote https://github.com/anthropics/claude-code-security-review.git`
+      # returned public heads but no `refs/tags/20250514`, so this dated vendor ref could not be
+      # proven to map to an immutable public commit SHA from this environment. Keep the upstream
+      # reference until Anthropics exposes a resolvable tag/branch or publishes the commit SHA.
+      - uses: anthropics/claude-code-security-review@20250514
+        with:
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+          claude-model: claude-sonnet-4-20250514
+          run-every-commit: false
