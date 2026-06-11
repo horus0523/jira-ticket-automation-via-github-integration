@@ -12,7 +12,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Create systemd service
-sudo tee /etc/systemd/system/jira-webhook.service << EOL
+sudo tee /etc/systemd/system/JiraWebhookService.service << EOL
 [Unit]
 Description=Jira Webhook Service
 
@@ -31,7 +31,7 @@ EOL
 
 # Start service
 sudo systemctl daemon-reload
-sudo systemctl enable jira-webhook
-sudo systemctl restart jira-webhook
+sudo systemctl enable JiraWebhookService
+sudo systemctl restart JiraWebhookService
 
 echo "Deployment completed!"

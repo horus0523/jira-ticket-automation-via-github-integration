@@ -14,57 +14,55 @@ Automate the creation of Jira tickets from GitHub issue comments. When a user co
 - **GitHub Webhook** triggers the API when an issue comment is created.
 - **Jira Cloud API** is used to create issues programmatically.
 - **Systemd Service** ensures the Flask app runs as a background service.
-- **Rate Limiting** and **Webhook Signature Validation** are part of the tracked service baseline. Repo allowlisting, protected metrics, and related hardening paths are follow-up behavior unless the same reviewed slice also includes those supporting files.
+- **Rate Limiting** and **Webhook Signature Validation** are part of the tracked service baseline.
 
 ---
 
 ## Specific Objectives
 
 - Create Jira tickets from GitHub issue comments that contain `/jira`.
-- Validate webhook signatures before calling Jira, and document repository-scope or hardened runtime settings only when the same reviewed slice includes that behavior.
+- Validate webhook signatures before calling Jira.
 - Document the EC2/systemd deployment path without claiming managed production operations.
 
 ---
 
 ## Project Structure
 
-The approved public PR3 boundary for this documentation refresh is limited to
-`README.md` and `.env.example`. Treat the broader service hardening paths below as
-branch-local or follow-up material until they are reviewed in the same tracked
-slice.
+The repository includes the application code, deployment helper, service unit,
+tests, and CI workflow shown below.
 
 ```
 jira-ticket-automation-via-github-integration/
 │
-├── deployment/                     # Branch-local / follow-up slice when present
+├── deployment/
 │   ├── deploy_ec2.sh
 │   └── JiraWebhookService.service
 │
-├── scripts/                        # Branch-local / follow-up slice when present
+├── scripts/
 │   └── (deployment helper scripts)
 │
 ├── src/
-│   ├── config.py                   # Branch-local / follow-up slice when present
+│   ├── config.py
 │   ├── create_jira_ticket.py
-│   ├── health.py                   # Branch-local / follow-up slice when present
+│   ├── health.py
 │   ├── jira_webhook_service.py
 │   ├── list_projects.py
-│   ├── logging_config.py           # Branch-local / follow-up slice when present
-│   └── metrics.py                  # Branch-local / follow-up slice when present
+│   ├── logging_config.py
+│   └── metrics.py
 │
-├── tests/                          # Branch-local / follow-up slice when present
+├── tests/
 │   └── (test files)
 │
 ├── requirements.txt
-├── .env.example                    # Approved PR3 boundary
-└── README.md                       # Approved PR3 boundary
+├── .env.example
+└── README.md
 ```
 
 ---
 
 ## Use Case
 
-A developer or project manager comments `/jira` on a GitHub issue or PR. The tracked baseline is that the service receives the webhook, validates the GitHub signature, and creates a Jira ticket with the comment as the description. Repository allowlisting is follow-up behavior unless it ships in the same reviewed slice.
+A developer or project manager comments `/jira` on a GitHub issue or PR. The service receives the webhook, validates the GitHub signature, and creates a Jira ticket with the comment as the description.
 
 ---
 
@@ -72,7 +70,7 @@ A developer or project manager comments `/jira` on a GitHub issue or PR. The tra
 
 - Flask API (`src/jira_webhook_service.py`) for webhook handling and Jira integration.
 - Example scripts for Jira API usage (`src/create_jira_ticket.py`, `src/list_projects.py`).
-- Deployment and service-management paths are follow-up material unless the same reviewed slice includes `deployment/**`, `scripts/**`, or service unit files.
+- Deployment helper scripts and the checked-in systemd unit support the documented EC2 setup path.
 - This README file.
 
 ---
@@ -125,27 +123,22 @@ METRICS_TOKEN=your_metrics_token_here
 Notes:
 
 - `JIRA_URL` must be an Atlassian Cloud URL: `https://<tenant>.atlassian.net`.
-- `ALLOWED_GITHUB_REPOS` is documented in `.env.example` for branches that also include repository-scope enforcement.
+- `ALLOWED_GITHUB_REPOS` configures the repository allowlist.
 - `VERSION` is optional and defaults to `1.0.0` when omitted.
-- `METRICS_TOKEN` and `/metrics` protection are follow-up behavior unless the same reviewed slice includes the supporting metrics path.
+- `METRICS_TOKEN` protects the metrics endpoint when that route is enabled in your deployment.
 
 ### Verification and CI
 
-The approved PR3 public slice documents the baseline behavior through
-`README.md` and `.env.example` only. Broader hardening claims such as config
-validation, repository allowlisting, protected metrics, deployment automation,
-and CI checks are follow-up material unless the same reviewed slice also includes
-their supporting files.
+The repository includes tests and CI for the service baseline. Run the current
+checks locally or in CI when you change application behavior.
 
 | Area | Failure cases covered first | Success path |
 |------|-----------------------------|--------------|
-| Configuration (branch-local `tests/test_config.py` when present) | invalid Jira hosts, placeholder secrets, malformed allowlist entries | validated Atlassian Cloud URL and normalized repository allowlist |
-| Webhook handling (branch-local `tests/test_jira_webhook_service.py` when present) | missing metrics token, repositories outside the allowlist, missing production allowlist | trusted repository with a signed `/jira` comment creates a Jira issue |
+| Configuration (`tests/test_config.py`) | invalid Jira hosts, placeholder secrets, malformed allowlist entries | validated Atlassian Cloud URL and normalized repository allowlist |
+| Webhook handling (`tests/test_jira_webhook_service.py`) | missing metrics token, repositories outside the allowlist, missing production allowlist | trusted repository with a signed `/jira` comment creates a Jira issue |
 
-If the branch also includes `.github/workflows/jira-service-ci.yml` plus the
-test files above, that broader slice can run `flake8`, `bandit -r src/`, and
-`pytest tests/ -v --tb=short`. Until then, do not treat those paths as checked-in
-verification evidence for the docs-only PR3 boundary.
+The checked-in `.github/workflows/jira-service-ci.yml` can run `flake8`,
+`bandit -r src/`, and `pytest tests/ -v --tb=short`.
 
 ### Create AWS Infrastructure
 
@@ -576,7 +569,7 @@ python3 ~/jira-ticket-automation-via-github-integration/src/create_jira_ticket.p
 python3 ~/jira-ticket-automation-via-github-integration/src/jira_webhook_service.py
 ```
 
-### Option B: Deploy with the script (Follow-up branch only)
+### Option B: Deploy with the helper script
 
 ```bash
 # Make the deployment script executable
@@ -618,30 +611,30 @@ VERSION=1.0.0
 - **Start the service:**
 
   ```bash
-  sudo systemctl start jira-webhook
+  sudo systemctl start JiraWebhookService
   ```
 
 - **Stop the service:**
 
   ```bash
-  sudo systemctl stop jira-webhook
+  sudo systemctl stop JiraWebhookService
   ```
 
 - **Check the service status:**
 
   ```bash
-  sudo systemctl status jira-webhook
+  sudo systemctl status JiraWebhookService
   ```
 
 - **Restart the service:**
 
   ```bash
-  sudo systemctl restart jira-webhook
+  sudo systemctl restart JiraWebhookService
   ```
 
 - **View logs:**
   ```bash
-  sudo journalctl -u jira-webhook.service -e
+  sudo journalctl -u JiraWebhookService -e
   ```
 
 ---
@@ -653,7 +646,7 @@ VERSION=1.0.0
 - Security groups should restrict access to trusted ingress such as a reverse proxy or load balancer.
 - Never commit `.env` files or secrets to public repositories.
 - Use HTTPS termination and operational monitoring before exposing the service beyond a lab environment.
-- Treat allowlist enforcement and `/metrics` token protection as follow-up behavior unless the same reviewed slice includes the supporting runtime paths.
+- Configure allowlist enforcement and `/metrics` token protection before exposing the service beyond a trusted environment.
 
 ---
 
@@ -662,7 +655,7 @@ VERSION=1.0.0
 - **Webhook not triggering?**  
   Check your GitHub webhook settings and ensure the event is `issue_comment`.
 - **Service not running?**  
-  Check `sudo systemctl status jira-webhook` and logs with `journalctl`.
+  Check `sudo systemctl status JiraWebhookService` and logs with `journalctl`.
 - **Jira ticket not created?**  
   Verify your Jira credentials and project key in `.env`.
 - **Rate limit errors?**  
@@ -682,10 +675,8 @@ VERSION=1.0.0
 ### Production bootstrap
 
 - Create `.env` manually and replace every placeholder before any deployment.
-- If the branch includes production bootstrap scripts or service units, review them in the same slice before treating them as checked-in operating guidance.
 
 ### Metrics access
 
-Treat metrics endpoint protection and example access commands as follow-up
-material unless the same reviewed slice includes the supporting metrics
-implementation.
+Protect metrics access with `METRICS_TOKEN` and network restrictions when you
+enable that endpoint.
