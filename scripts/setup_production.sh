@@ -40,6 +40,17 @@ require_env JIRA_API_TOKEN
 require_env JIRA_PROJECT_KEY
 require_env GITHUB_WEBHOOK_SECRET
 require_env METRICS_TOKEN
+require_env RATELIMIT_STORAGE_URI
+
+if [[ "$RATELIMIT_STORAGE_URI" == "memory://" ]]; then
+    echo "ERROR: RATELIMIT_STORAGE_URI must use persistent storage in production."
+    exit 1
+fi
+
+if [[ ! "$RATELIMIT_STORAGE_URI" =~ ^[a-zA-Z][a-zA-Z0-9+.-]*:// ]]; then
+    echo "ERROR: RATELIMIT_STORAGE_URI must be a valid storage URI."
+    exit 1
+fi
 
 if [[ ! "$JIRA_URL" =~ ^https://[a-z0-9][a-z0-9-]*\.atlassian\.net/?$ ]]; then
     echo "ERROR: JIRA_URL must be an Atlassian Cloud HTTPS URL (https://<tenant>.atlassian.net)."
