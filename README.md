@@ -118,6 +118,8 @@ JIRA_PROJECT_KEY=ENG
 GITHUB_WEBHOOK_SECRET=your_webhook_secret_here
 ALLOWED_GITHUB_REPOS=octo-org/example-repo
 METRICS_TOKEN=your_metrics_token_here
+FLASK_ENV=production
+RATELIMIT_STORAGE_URI=redis://redis.internal:6379/0
 APP_HOST=127.0.0.1
 APP_PORT=5000
 ```
@@ -126,6 +128,7 @@ Notes:
 
 - `JIRA_URL` must be an Atlassian Cloud URL: `https://<tenant>.atlassian.net`.
 - `ALLOWED_GITHUB_REPOS` configures the repository allowlist.
+- `FLASK_ENV=production` and a persistent `RATELIMIT_STORAGE_URI` are required outside development/testing. `memory://` is for local development and tests only.
 - `APP_HOST` defaults to `127.0.0.1` for loopback-only service binding. Use a reverse proxy, tunnel, or load balancer for public webhook traffic. Set `APP_HOST=0.0.0.0` only when you explicitly need a direct non-loopback bind and the network path is restricted.
 - `APP_PORT` defaults to `5000`.
 - `VERSION` is optional and defaults to `1.0.0` when omitted.
@@ -589,17 +592,22 @@ python3 ~/jira-ticket-automation-via-github-integration/src/create_jira_ticket.p
 python3 ~/jira-ticket-automation-via-github-integration/src/jira_webhook_service.py
 ```
 
-### Option B: Deploy with the helper script
+### Option B: Deploy with the validated production bootstrap
 
 ```bash
-# Make the deployment script executable
-chmod +x ~/jira-ticket-automation-via-github-integration/deployment/deploy_ec2.sh
+# Make the setup script executable
+chmod +x ~/jira-ticket-automation-via-github-integration/scripts/setup_production.sh
 ```
 
 ```bash
-# Run the deployment script to automate setup and service creation
-~/jira-ticket-automation-via-github-integration/deployment/deploy_ec2.sh
+# Run the validated production bootstrap from the repository root
+cd ~/jira-ticket-automation-via-github-integration
+sudo ./scripts/setup_production.sh
 ```
+
+If you prefer the EC2 helper, `deployment/deploy_ec2.sh` installs system packages and
+then delegates to `scripts/setup_production.sh`, so production validation is the same
+in both paths.
 
 ## Test the Integration
 
