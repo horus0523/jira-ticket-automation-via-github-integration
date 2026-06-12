@@ -366,6 +366,7 @@ GITHUB_WEBHOOK_SECRET=long-random-webhook-secret
 ALLOWED_GITHUB_REPOS=acme/platform-service         # Required outside local development
 METRICS_TOKEN=long-random-metrics-token
 FLASK_ENV=production
+RATELIMIT_STORAGE_URI=redis://redis.internal:6379/0      # Required outside development/testing
 VERSION=1.0.0                                      # Optional; defaults to 1.0.0 when omitted
 ```
 
@@ -395,6 +396,7 @@ GITHUB_WEBHOOK_SECRET=long-random-webhook-secret
 ALLOWED_GITHUB_REPOS=acme/platform-service
 METRICS_TOKEN=long-random-metrics-token
 FLASK_ENV=production
+RATELIMIT_STORAGE_URI=redis://redis.internal:6379/0
 VERSION=1.0.0
 ```
 
@@ -619,6 +621,7 @@ GITHUB_WEBHOOK_SECRET=long-random-webhook-secret
 ALLOWED_GITHUB_REPOS=acme/platform-service
 METRICS_TOKEN=long-random-metrics-token
 FLASK_ENV=production
+RATELIMIT_STORAGE_URI=redis://redis.internal:6379/0
 VERSION=1.0.0
 ```
 
@@ -661,6 +664,7 @@ VERSION=1.0.0
 
 - Webhook requests are validated with `GITHUB_WEBHOOK_SECRET` and the `X-Hub-Signature-256` header.
 - Rate limiting is part of the tracked Flask service baseline.
+- `RATELIMIT_STORAGE_URI` must point to persistent storage in production; `memory://` is reserved for development and tests.
 - Security groups should restrict access to trusted ingress such as a reverse proxy or load balancer.
 - Never commit `.env` files or secrets to public repositories.
 - Use HTTPS termination and operational monitoring before exposing the service beyond a lab environment.
@@ -677,7 +681,8 @@ VERSION=1.0.0
 - **Jira ticket not created?**  
   Verify your Jira credentials and project key in `.env`.
 - **Rate limit errors?**  
-  Wait a minute and try again, or adjust the rate limit in the Flask app if needed.
+  Wait a minute and try again. In production, confirm `RATELIMIT_STORAGE_URI`
+  points to a reachable persistent backend such as Redis.
 
 ---
 

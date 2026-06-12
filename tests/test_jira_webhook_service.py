@@ -15,10 +15,15 @@ def load_service_module(monkeypatch, **extra_env):
         "GITHUB_WEBHOOK_SECRET": "webhook-secret",
         "METRICS_TOKEN": "metrics-secret",
         "ALLOWED_GITHUB_REPOS": "trusted/repo",
+        "FLASK_ENV": "testing",
+        "RATELIMIT_STORAGE_URI": "memory://",
     }
     base_env.update(extra_env)
 
     for key, value in base_env.items():
+        if value is None:
+            monkeypatch.delenv(key, raising=False)
+            continue
         monkeypatch.setenv(key, value)
 
     sys.modules.pop("src.jira_webhook_service", None)
@@ -69,9 +74,10 @@ def test_create_ticket_rejects_repositories_outside_allowlist(monkeypatch):
 
 
 def test_create_ticket_fails_closed_when_allowlist_missing_in_production(monkeypatch):
-    service = load_service_module(
-        monkeypatch, ALLOWED_GITHUB_REPOS="", FLASK_ENV="production"
-    )
+    service = load_service_module(monkeypatch, ALLOWED_GITHUB_REPOS="")
+    service.app.config["FLASK_ENV"] = "production"
+    service.app.config["REQUIRE_REPO_ALLOWLIST"] = True
+    service.app.config["ALLOWED_GITHUB_REPOS"] = set()
     client = service.app.test_client()
 
     payload = json.dumps(
@@ -145,3 +151,20 @@ def test_create_ticket_allows_trusted_repository(monkeypatch):
 
     assert response.status_code == 201
     assert response.get_json()["key"] == "DEV-123"
+
+
+def test_service_import_fails_closed_without_persistent_ratelimit_storage(
+    monkeypatch,
+):
+    sys.modules.pop("src.jira_webhook_service", None)
+
+    try:
+        load_service_module(
+            monkeypatch,
+            FLASK_ENV="production",
+            RATELIMIT_STORAGE_URI=None,
+        )
+    except ValueError as exc:
+        assert "RATELIMIT_STORAGE_URI is required" in str(exc)
+    else:
+        raise AssertionError("Expected production import to fail without rate-limit storage")

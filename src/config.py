@@ -104,6 +104,31 @@ def validate_port(value: str | int | None) -> int:
     return port
 
 
+def validate_ratelimit_storage_uri(value: str | None, flask_env: str) -> str:
+    """Require persistent rate-limit storage outside development and testing."""
+    normalized = (value or "").strip()
+    allow_in_memory = flask_env in {"development", "testing"}
+
+    if not normalized:
+        if allow_in_memory:
+            return "memory://"
+        raise ValueError(
+            "RATELIMIT_STORAGE_URI is required outside development/testing"
+        )
+
+    if normalized == "memory://":
+        if allow_in_memory:
+            return normalized
+        raise ValueError(
+            "RATELIMIT_STORAGE_URI must not use memory:// outside development/testing"
+        )
+
+    if not urlparse(normalized).scheme:
+        raise ValueError("RATELIMIT_STORAGE_URI must be a valid storage URI")
+
+    return normalized
+
+
 def load_runtime_config(environ: dict[str, str] | None = None) -> dict[str, object]:
     """Load and validate runtime configuration from the environment."""
     env = environ or os.environ
@@ -129,5 +154,8 @@ def load_runtime_config(environ: dict[str, str] | None = None) -> dict[str, obje
         "APP_HOST": validate_bind_host(env.get("APP_HOST")),
         "APP_PORT": validate_port(env.get("APP_PORT")),
         "FLASK_ENV": flask_env,
+        "RATELIMIT_STORAGE_URI": validate_ratelimit_storage_uri(
+            env.get("RATELIMIT_STORAGE_URI"), flask_env
+        ),
         "VERSION": env.get("VERSION", "1.0.0"),
     }

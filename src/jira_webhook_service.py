@@ -50,7 +50,12 @@ def create_app() -> Flask:
     app.config.update(runtime_config)
     app.register_blueprint(health_bp)
 
-    limiter = Limiter(get_remote_address, app=app, default_limits=["10 per minute"])
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["10 per minute"],
+        storage_uri=app.config["RATELIMIT_STORAGE_URI"],
+    )
 
     @app.route("/create_jira_ticket", methods=["POST"])
     @limiter.limit("5 per minute")

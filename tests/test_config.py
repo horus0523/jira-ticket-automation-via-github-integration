@@ -7,6 +7,7 @@ from src.config import (
     validate_bind_host,
     validate_port,
     validate_jira_url,
+    validate_ratelimit_storage_uri,
 )
 
 
@@ -54,6 +55,7 @@ def test_load_runtime_config_builds_validated_mapping():
             "GITHUB_WEBHOOK_SECRET": "secret-123",
             "ALLOWED_GITHUB_REPOS": "owner/repo",
             "METRICS_TOKEN": "metrics-secret",
+            "RATELIMIT_STORAGE_URI": "redis://localhost:6379/0",
         }
     )
 
@@ -62,6 +64,7 @@ def test_load_runtime_config_builds_validated_mapping():
     assert config["REQUIRE_REPO_ALLOWLIST"] is True
     assert config["APP_HOST"] == "127.0.0.1"
     assert config["APP_PORT"] == 5000
+    assert config["RATELIMIT_STORAGE_URI"] == "redis://localhost:6379/0"
 
 
 def test_load_runtime_config_relaxes_repo_allowlist_only_in_development():
@@ -79,6 +82,27 @@ def test_load_runtime_config_relaxes_repo_allowlist_only_in_development():
 
     assert config["ALLOWED_GITHUB_REPOS"] == set()
     assert config["REQUIRE_REPO_ALLOWLIST"] is False
+    assert config["RATELIMIT_STORAGE_URI"] == "memory://"
+
+
+def test_validate_ratelimit_storage_uri_rejects_missing_or_memory_in_production():
+    with pytest.raises(ValueError):
+        validate_ratelimit_storage_uri(None, "production")
+
+    with pytest.raises(ValueError):
+        validate_ratelimit_storage_uri("memory://", "production")
+
+
+def test_validate_ratelimit_storage_uri_allows_explicit_memory_for_local_envs():
+    assert validate_ratelimit_storage_uri(None, "development") == "memory://"
+    assert validate_ratelimit_storage_uri("memory://", "testing") == "memory://"
+
+
+def test_validate_ratelimit_storage_uri_accepts_persistent_backend_uri():
+    assert (
+        validate_ratelimit_storage_uri("redis://localhost:6379/0", "production")
+        == "redis://localhost:6379/0"
+    )
 
 
 def test_validate_bind_host_defaults_to_loopback_and_allows_explicit_broad_bind():
