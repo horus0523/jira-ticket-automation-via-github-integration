@@ -126,7 +126,7 @@ Notes:
 
 - `JIRA_URL` must be an Atlassian Cloud URL: `https://<tenant>.atlassian.net`.
 - `ALLOWED_GITHUB_REPOS` configures the repository allowlist.
-- `APP_HOST` defaults to `127.0.0.1`; set `0.0.0.0` only when you explicitly need a non-loopback bind and the network path is restricted.
+- `APP_HOST` defaults to `127.0.0.1` for loopback-only service binding. Use a reverse proxy, tunnel, or load balancer for public webhook traffic. Set `APP_HOST=0.0.0.0` only when you explicitly need a direct non-loopback bind and the network path is restricted.
 - `APP_PORT` defaults to `5000`.
 - `VERSION` is optional and defaults to `1.0.0` when omitted.
 - `METRICS_TOKEN` protects the metrics endpoint when that route is enabled in your deployment.
@@ -264,11 +264,21 @@ Click **Launch instance**
 1. Go to **Instances** > **View all instances**
 2. Wait for the status to be **Running** and the checks to be **2/2 passed**
 3. Copy the **Public IPv4 address**
-4. Besides the public IP, also copy the **Public DNS** of your EC2 instance (e.g., `ec2-xx-xx-xx-xx.compute-1.amazonaws.com`).  
-   You can use this DNS instead of the IP to access your Flask service. For example:
+4. Besides the public IP, also copy the **Public DNS** of your EC2 instance (e.g., `ec2-xx-xx-xx-xx.compute-1.amazonaws.com`).
+   Use it only through the public entrypoint you configure for the service.
+
+By default, the service binds to `127.0.0.1`, so test it locally on the instance:
 
 ```
-http://<your-ec2-public-dns>:5000/create_jira_ticket
+http://127.0.0.1:5000/create_jira_ticket
+```
+
+For a GitHub webhook payload URL, expose the service through a reverse proxy,
+tunnel, or load balancer. Use a direct public URL only if you explicitly set
+`APP_HOST=0.0.0.0` and restrict the network path:
+
+```text
+http://<your-public-entrypoint>:5000/create_jira_ticket
 ```
 
 #### Step 5: Connect to the instance
@@ -524,11 +534,15 @@ chmod +x executable-file
 
 1. Go to your repository on GitHub ([https://github.com/](https://github.com/))
 2. Click **Settings > Webhooks > Add webhook** ([GitHub Webhooks documentation](https://docs.github.com/en/webhooks))
-3. For **Payload URL**, enter:
+3. For **Payload URL**, enter the public endpoint provided by your reverse proxy,
+   tunnel, or load balancer:
 
 ```bash
-http://<your-ec2-public-ip>:5000/create_jira_ticket
+https://<your-public-entrypoint>/create_jira_ticket
 ```
+
+If you intentionally expose Flask directly instead, set `APP_HOST=0.0.0.0`,
+restrict ingress to trusted sources, and use the matching public host and port.
 
 4. For **Content type**, select: `application/json`
 5. For **Secret**, enter the same value as `GITHUB_WEBHOOK_SECRET` in your `.env`
