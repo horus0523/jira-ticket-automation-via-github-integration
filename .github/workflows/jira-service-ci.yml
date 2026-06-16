@@ -32,14 +32,7 @@ jobs:
         run: flake8 src/ --max-line-length=100 --ignore=E501,W503
 
       - name: Security scan with bandit
-        run: bandit -r src/ -f json -o bandit_report.json
+        run: bandit -r src/ -ll
 
       - name: Run tests
         run: pytest tests/ -v --tb=short
-
-      - name: Upload Bandit report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: bandit-report
-          path: bandit_report.json
