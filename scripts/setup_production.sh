@@ -30,6 +30,7 @@ load_env_file() {
     fi
 
     set -a
+    # shellcheck source=/dev/null
     source "$ENV_SOURCE_FILE"
     set +a
 }
@@ -63,6 +64,7 @@ install_python_environment() {
     mkdir -p "$APP_DIR"
 
     python3 -m venv "$APP_DIR/venv"
+    # shellcheck source=/dev/null
     source "$APP_DIR/venv/bin/activate"
     pip install --upgrade pip
     pip install -r requirements.txt

@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/**'
+      - 'deployment/**'
+      - 'scripts/**'
       - 'src/**'
       - 'tests/**'
       - 'requirements.txt'
@@ -28,11 +31,19 @@ jobs:
           pip install -r requirements.txt
           pip install flake8 bandit
 
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
       - name: Lint with flake8
         run: flake8 src/ --max-line-length=100 --ignore=E501,W503
 
       - name: Security scan with bandit
         run: bandit -r src/ -ll
+
+      - name: Lint shell scripts with ShellCheck
+        run: shellcheck scripts/*.sh deployment/*.sh
 
       - name: Run tests
         run: pytest tests/ -v --tb=short
