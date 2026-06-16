@@ -2,42 +2,56 @@
 
 ---
 
-## 🎯 Purpose
+## Purpose
 
 Automate the creation of Jira tickets from GitHub issue comments. When a user comments `/jira` on an issue or pull request, this service receives a webhook, validates it, and creates a Jira issue with the comment content.
 
 ---
 
-## 🏗️ Project Architecture
+## Project Architecture
 
 - **Flask API** running on an EC2 instance, exposed via HTTP.
 - **GitHub Webhook** triggers the API when an issue comment is created.
 - **Jira Cloud API** is used to create issues programmatically.
 - **Systemd Service** ensures the Flask app runs as a background service.
-- **Rate Limiting** and **Webhook Signature Validation** for security.
+- **Rate Limiting** and **Webhook Signature Validation** are part of the tracked service baseline.
 
 ---
 
-## 📑 Specific Objectives
+## Specific Objectives
 
-- Enable non-technical users to create Jira tickets from GitHub by simply commenting `/jira`.
-- Securely automate ticket creation, reducing manual work and errors.
-- Provide a robust, production-ready deployment on AWS EC2.
+- Create Jira tickets from GitHub issue comments that contain `/jira`.
+- Validate webhook signatures before calling Jira.
+- Document the EC2/systemd deployment path without claiming managed production operations.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
+
+The repository includes the application code, deployment helper, service unit,
+tests, and CI workflow shown below.
 
 ```
 jira-ticket-automation-via-github-integration/
 │
 ├── deployment/
-│   └── deploy_ec2.sh
+│   ├── deploy_ec2.sh
+│   └── JiraWebhookService.service
+│
+├── scripts/
+│   └── (deployment helper scripts)
 │
 ├── src/
+│   ├── config.py
 │   ├── create_jira_ticket.py
+│   ├── health.py
 │   ├── jira_webhook_service.py
-│   └── list_projects.py
+│   ├── list_projects.py
+│   ├── logging_config.py
+│   └── metrics.py
+│
+├── tests/
+│   └── (test files)
 │
 ├── requirements.txt
 ├── .env.example
@@ -46,22 +60,22 @@ jira-ticket-automation-via-github-integration/
 
 ---
 
-## 🏢 Use Case
+## Use Case
 
-A developer or project manager comments `/jira` on a GitHub issue or PR. The service receives the webhook, validates it, and creates a Jira ticket with the comment as the description. The process is seamless and requires no Jira access for the end user.
+A developer or project manager comments `/jira` on a GitHub issue or PR. The service receives the webhook, validates the GitHub signature, and creates a Jira ticket with the comment as the description.
 
 ---
 
-## 📋 Deliverables
+## Deliverables
 
 - Flask API (`src/jira_webhook_service.py`) for webhook handling and Jira integration.
-- Deployment script (`deployment/deploy_ec2.sh`) for EC2 setup and service management.
 - Example scripts for Jira API usage (`src/create_jira_ticket.py`, `src/list_projects.py`).
+- Deployment helper scripts and the checked-in systemd unit support the documented EC2 setup path.
 - This README file.
 
 ---
 
-## 🛠️ Technologies Used
+## Technologies Used
 
 **Python Libraries:**
 
@@ -72,7 +86,7 @@ A developer or project manager comments `/jira` on a GitHub issue or PR. The ser
 
 **Deployment/Infrastructure:**
 
-- Python 3.12+
+- Python 3.11+
 - systemd
 - AWS EC2 (Ubuntu)
 
@@ -83,9 +97,9 @@ A developer or project manager comments `/jira` on a GitHub issue or PR. The ser
 
 ---
 
-## 💻 Initial Setup
+## Initial Setup
 
-### 📋 Prerequisites
+### Prerequisites
 
 - Active EC2 instance with SSH access (Ubuntu recommended)
 - Git installed on the instance
@@ -94,7 +108,46 @@ A developer or project manager comments `/jira` on a GitHub issue or PR. The ser
 - Jira Cloud account and API token
 - `.env` file with required variables
 
-### ☁️ Create AWS Infrastructure
+### Required `.env` keys
+
+```dotenv
+JIRA_URL=https://your-domain.atlassian.net
+JIRA_EMAIL=your-email@domain.com
+JIRA_API_TOKEN=your_jira_api_token_here
+JIRA_PROJECT_KEY=ENG
+GITHUB_WEBHOOK_SECRET=your_webhook_secret_here
+ALLOWED_GITHUB_REPOS=octo-org/example-repo
+METRICS_TOKEN=your_metrics_token_here
+FLASK_ENV=production
+RATELIMIT_STORAGE_URI=redis://redis.internal:6379/0
+APP_HOST=127.0.0.1
+APP_PORT=5000
+```
+
+Notes:
+
+- `JIRA_URL` must be an Atlassian Cloud URL: `https://<tenant>.atlassian.net`.
+- `ALLOWED_GITHUB_REPOS` configures the repository allowlist.
+- `FLASK_ENV=production` and a persistent `RATELIMIT_STORAGE_URI` are required outside development/testing. `memory://` is for local development and tests only.
+- `APP_HOST` defaults to `127.0.0.1` for loopback-only service binding. Use a reverse proxy, tunnel, or load balancer for public webhook traffic. Set `APP_HOST=0.0.0.0` only when you explicitly need a direct non-loopback bind and the network path is restricted.
+- `APP_PORT` defaults to `5000`.
+- `VERSION` is optional and defaults to `1.0.0` when omitted.
+- `METRICS_TOKEN` protects the metrics endpoint when that route is enabled in your deployment.
+
+### Verification and CI
+
+The repository includes tests and CI for the service baseline. Run the current
+checks locally or in CI when you change application behavior.
+
+| Area | Failure cases covered first | Success path |
+|------|-----------------------------|--------------|
+| Configuration (`tests/test_config.py`) | invalid Jira hosts, placeholder secrets, malformed allowlist entries | validated Atlassian Cloud URL and normalized repository allowlist |
+| Webhook handling (`tests/test_jira_webhook_service.py`) | missing metrics token, repositories outside the allowlist, missing production allowlist | trusted repository with a signed `/jira` comment creates a Jira issue |
+
+The checked-in `.github/workflows/jira-service-ci.yml` can run `flake8`,
+`bandit -r src/`, and `pytest tests/ -v --tb=short`.
+
+### Create AWS Infrastructure
 
 #### Step 1: Sign in to AWS
 
@@ -110,9 +163,9 @@ Make sure to select the region where you will create all resources:
 - **US East (N. Virginia)** - `us-east-1`: Most commonly used with lower prices.
 - **South America (São Paulo)** - `sa-east-1`: Better latency if you are in South America.
 
-#### Step 3: 🔐 Create Required Resources Before the Instance
+#### Step 3: Create Required Resources Before the Instance
 
-##### 🔑 Create the key pair (SSH key)
+##### Create the key pair (SSH key)
 
 This key is necessary to connect to the server. It can only be downloaded once.
 
@@ -131,7 +184,7 @@ This key is necessary to connect to the server. It can only be downloaded once.
 
 A `.pem` or `.ppk` file will be downloaded. **Save it carefully**. It's essential for connecting.
 
-##### 👮 Create a Security Group
+##### Create a Security Group
 
 This allows you to define what traffic can access your instance.
 
@@ -155,7 +208,7 @@ This allows you to define what traffic can access your instance.
 
 - **Type:** Custom TCP  
   **Port:** 5000  
-  **Source:** Anywhere (0.0.0.0/0)
+  **Source:** Reverse proxy / load balancer / IPs confiables solamente
 
 6. In **Outbound rules (verify they are present):**
 
@@ -165,7 +218,7 @@ This allows you to define what traffic can access your instance.
 
 7. Click **Create security group**
 
-#### Step 4: 🖥️ Create the EC2 Instance
+#### Step 4: Create the EC2 Instance
 
 ##### Launch new instance
 
@@ -186,15 +239,15 @@ Choose a **Free tier eligible** AMI, such as:
 
 - In **Key pair (login)**, choose:
 
-  - ✅ **Choose existing key pair**
+  - **Choose existing key pair**
   - Select `jira_webhook_service_key_pair`
 
-⚠️ **Make sure you have the `.pem` or `.ppk` file saved**, or you won't be able to connect.
+**Make sure you have the `.pem` or `.ppk` file saved**, or you won't be able to connect.
 
 ##### Configure network and security
 
 - **VPC and subnet**: Leave the default values
-- **Auto-assign public IP**: ✅ Enabled
+- **Auto-assign public IP**: Enabled
 - **Firewall (Security group)**:
 
   - Select **"Select existing security group"**
@@ -214,14 +267,24 @@ Click **Launch instance**
 1. Go to **Instances** > **View all instances**
 2. Wait for the status to be **Running** and the checks to be **2/2 passed**
 3. Copy the **Public IPv4 address**
-4. Besides the public IP, also copy the **Public DNS** of your EC2 instance (e.g., `ec2-xx-xx-xx-xx.compute-1.amazonaws.com`).  
-   You can use this DNS instead of the IP to access your Flask service. For example:
+4. Besides the public IP, also copy the **Public DNS** of your EC2 instance (e.g., `ec2-xx-xx-xx-xx.compute-1.amazonaws.com`).
+   Use it only through the public entrypoint you configure for the service.
+
+By default, the service binds to `127.0.0.1`, so test it locally on the instance:
 
 ```
-http://<your-ec2-public-dns>:5000/create_jira_ticket
+http://127.0.0.1:5000/create_jira_ticket
 ```
 
-#### Step 5: 🔗 Connect to the instance
+For a GitHub webhook payload URL, expose the service through a reverse proxy,
+tunnel, or load balancer. Use a direct public URL only if you explicitly set
+`APP_HOST=0.0.0.0` and restrict the network path:
+
+```text
+http://<your-public-entrypoint>:5000/create_jira_ticket
+```
+
+#### Step 5: Connect to the instance
 
 ##### From Linux, macOS or Windows with WSL
 
@@ -240,7 +303,7 @@ chmod 400 jira_webhook_service_key_pair.pem
 ssh -i "jira_webhook_service_key_pair.pem" ubuntu@YOUR_PUBLIC_IP
 ```
 
-## 🚀 Installation and Usage
+## Installation and Usage
 
 ### Connect to EC2 Instance
 
@@ -281,7 +344,7 @@ git clone https://github.com/horus0523/jira-ticket-automation-via-github-integra
 cd jira-ticket-automation-via-github-integration
 ```
 
-### 🔑 Generate Your Jira API Token
+### Generate Your Jira API Token
 
 1. Go to [https://id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens) and **sign in to your Jira/Atlassian account** if you are not already logged in
 2. Click **Create API token**
@@ -289,19 +352,25 @@ cd jira-ticket-automation-via-github-integration
 4. Copy the generated token and **save it securely** (you will not be able to see it again)
 5. Open your `.env` file in the project root and set:
    ```
-   JIRA_API_TOKEN=your_generated_token_here
+   JIRA_API_TOKEN=your_jira_api_token_here
    ```
 6. Save the .env file
 
-### 📝 Configure Your Jira Environment Variables
+### Configure Your Jira Environment Variables
 
 After generating your Jira API token, complete your `.env` file with the following variables:
 
 ```dotenv
-JIRA_URL=https://your-domain.atlassian.net         # Your Jira Cloud site URL
-JIRA_EMAIL=your-email@example.com                  # The email you use to log in to Jira
-JIRA_API_TOKEN=your_generated_token_here           # The API token you just created
-JIRA_PROJECT_KEY=YOURPROJECTKEY                    # The key of your Jira project (e.g., SMS, DEV, etc.)
+JIRA_URL=https://acme.atlassian.net                # Your Jira Cloud site URL
+JIRA_EMAIL=jira-bot@acme.example                   # The email used for Jira API access
+JIRA_API_TOKEN=atlassian-api-token                 # The API token you just created
+JIRA_PROJECT_KEY=ENG                               # The key of your Jira project (e.g., ENG, DEV)
+GITHUB_WEBHOOK_SECRET=long-random-webhook-secret
+ALLOWED_GITHUB_REPOS=acme/platform-service         # Required outside local development
+METRICS_TOKEN=long-random-metrics-token
+FLASK_ENV=production
+RATELIMIT_STORAGE_URI=redis://redis.internal:6379/0      # Required outside development/testing
+VERSION=1.0.0                                      # Optional; defaults to 1.0.0 when omitted
 ```
 
 #### How to find each value:
@@ -322,18 +391,16 @@ JIRA_PROJECT_KEY=YOURPROJECTKEY                    # The key of your Jira projec
 **Example .env section:**
 
 ```dotenv
-JIRA_URL=https://your-domain.atlassian.net
-JIRA_EMAIL=your-email@example.com
-JIRA_API_TOKEN=your_api_token
-JIRA_PROJECT_KEY=your_project_key
-
-#GitHub
-GITHUB_WEBHOOK_SECRET=webhook_secret_123456
-
-#Flask
-FLASK_HOST=0.0.0.0
-FLASK_PORT=5000
-FLASK_DEBUG=True
+JIRA_URL=https://acme.atlassian.net
+JIRA_EMAIL=jira-bot@acme.example
+JIRA_API_TOKEN=atlassian-api-token
+JIRA_PROJECT_KEY=ENG
+GITHUB_WEBHOOK_SECRET=long-random-webhook-secret
+ALLOWED_GITHUB_REPOS=acme/platform-service
+METRICS_TOKEN=long-random-metrics-token
+FLASK_ENV=production
+RATELIMIT_STORAGE_URI=redis://redis.internal:6379/0
+VERSION=1.0.0
 ```
 
 ### Create a New Repository on GitHub
@@ -348,14 +415,15 @@ FLASK_DEBUG=True
 
 ### Setup GitHub Authentication
 
-#### Option A: Personal Access Token (Recommended)
+#### Option A: Fine-grained Personal Access Token
 
 1. Go to [https://github.com/settings/tokens](https://github.com/settings/tokens)
-2. Click "Generate new token"
+2. Click "Generate new token" under fine-grained tokens
 3. Name: "EC2_Development"
-4. Select scopes: **repo** (full control)
-5. Set expiration and generate
-6. **Copy the token immediately**
+4. Limit repository access to the target repository only
+5. Grant only the permissions needed for the action you are taking, such as read/write Contents for an initial push
+6. Set a short expiration and generate
+7. **Copy the token immediately**
 
 #### Option B: SSH Keys (Alternative)
 
@@ -409,8 +477,8 @@ git status
 ```
 
 ```bash
-# If there are uncommitted changes, commit them
-git add .
+# If there are uncommitted changes, stage only intended files
+git add README.md src/ tests/ deployment/ scripts/ requirements.txt .env.example
 git commit -m "Initial commit from cloned repository"
 ```
 
@@ -430,7 +498,7 @@ When prompted for credentials:
 
 Go to your repository on GitHub to confirm that all files were uploaded correctly.
 
-## 🔧 Troubleshooting Authentication
+## Troubleshooting Authentication
 
 ### If you get "Authentication failed":
 
@@ -451,14 +519,12 @@ ssh -T git@github.com
 # Should return: "Hi username! You've successfully authenticated..."
 ```
 
-### Store credentials to avoid repeated prompts (HTTPS only):
+### Avoid persistent credential storage when possible
 
 ```bash
-# Store credentials for future use
-git config --global credential.helper store
-
-# Or use cache (temporary storage)
-git config --global credential.helper cache
+# Prefer SSH keys or a scoped credential manager over plaintext storage.
+# If you need temporary HTTPS caching, scope it to this repository only.
+git config credential.helper 'cache --timeout=900'
 ```
 
 ### "Permission denied" error:
@@ -468,15 +534,19 @@ git config --global credential.helper cache
 chmod +x executable-file
 ```
 
-## 📰 Create the GitHub Webhook
+## Create the GitHub Webhook
 
 1. Go to your repository on GitHub ([https://github.com/](https://github.com/))
 2. Click **Settings > Webhooks > Add webhook** ([GitHub Webhooks documentation](https://docs.github.com/en/webhooks))
-3. For **Payload URL**, enter:
+3. For **Payload URL**, enter the public endpoint provided by your reverse proxy,
+   tunnel, or load balancer:
 
 ```bash
-http://<your-ec2-public-ip>:5000/create_jira_ticket
+https://<your-public-entrypoint>/create_jira_ticket
 ```
+
+If you intentionally expose Flask directly instead, set `APP_HOST=0.0.0.0`,
+restrict ingress to trusted sources, and use the matching public host and port.
 
 4. For **Content type**, select: `application/json`
 5. For **Secret**, enter the same value as `GITHUB_WEBHOOK_SECRET` in your `.env`
@@ -484,7 +554,7 @@ http://<your-ec2-public-ip>:5000/create_jira_ticket
    Select: **Let me select individual events** and check **Issue comments**
 7. Click **Add webhook** to save
 
-## 🚄 Running Scripts
+## Running Scripts
 
 ### Option A: Test the code manually on the AWS Instance (Alternative)
 
@@ -521,103 +591,109 @@ python3 ~/jira-ticket-automation-via-github-integration/src/create_jira_ticket.p
 python3 ~/jira-ticket-automation-via-github-integration/src/jira_webhook_service.py
 ```
 
-### Option B: Deploy with the script (Recommended)
+### Option B: Deploy with the validated production bootstrap
 
 ```bash
-# Make the deployment script executable
-chmod +x ~/jira-ticket-automation-via-github-integration/deployment/deploy_ec2.sh
+# Make the setup script executable
+chmod +x ~/jira-ticket-automation-via-github-integration/scripts/setup_production.sh
 ```
 
 ```bash
-# Run the deployment script to automate setup and service creation
-~/jira-ticket-automation-via-github-integration/deployment/deploy_ec2.sh
+# Run the validated production bootstrap from the repository root
+cd ~/jira-ticket-automation-via-github-integration
+sudo ./scripts/setup_production.sh
 ```
 
-## ▶️ Test the Integration
+If you prefer the EC2 helper, `deployment/deploy_ec2.sh` installs system packages and
+then delegates to `scripts/setup_production.sh`, so production validation is the same
+in both paths.
+
+## Test the Integration
 
 - Comment `/jira` on any issue in your GitHub repository
 - Verify that your endpoint receives the request and a ticket is created in
 
 ---
 
-## ⚙️ Configuration Variables
+## Configuration Variables
 
 Example `.env`:
 
 ```dotenv
-JIRA_URL=https://tu-dominio.atlassian.net
-JIRA_EMAIL=tu-correo@ejemplo.com
-JIRA_API_TOKEN=tu_token_api
-JIRA_PROJECT_KEY=CLAVE
-
-#Flask
-FLASK_HOST=0.0.0.0
-FLASK_PORT=5000
-FLASK_DEBUG=True
-
-#GitHub
-GITHUB_WEBHOOK_SECRET=webhook_secret_123456
+JIRA_URL=https://acme.atlassian.net
+JIRA_EMAIL=jira-bot@acme.example
+JIRA_API_TOKEN=atlassian-api-token
+JIRA_PROJECT_KEY=ENG
+GITHUB_WEBHOOK_SECRET=long-random-webhook-secret
+ALLOWED_GITHUB_REPOS=acme/platform-service
+METRICS_TOKEN=long-random-metrics-token
+FLASK_ENV=production
+RATELIMIT_STORAGE_URI=redis://redis.internal:6379/0
+VERSION=1.0.0
 ```
 
 ---
 
-## 🔧 Useful Commands
+## Useful Commands
 
 - **Start the service:**
 
   ```bash
-  sudo systemctl start jira-webhook
+  sudo systemctl start JiraWebhookService
   ```
 
 - **Stop the service:**
 
   ```bash
-  sudo systemctl stop jira-webhook
+  sudo systemctl stop JiraWebhookService
   ```
 
 - **Check the service status:**
 
   ```bash
-  sudo systemctl status jira-webhook
+  sudo systemctl status JiraWebhookService
   ```
 
 - **Restart the service:**
 
   ```bash
-  sudo systemctl restart jira-webhook
+  sudo systemctl restart JiraWebhookService
   ```
 
 - **View logs:**
   ```bash
-  sudo journalctl -u jira-webhook.service -e
+  sudo journalctl -u JiraWebhookService -e
   ```
 
 ---
 
-## 🔒 Security
+## Security
 
-- Webhook requests are validated using `GITHUB_WEBHOOK_SECRET`
-- Rate limiting is enforced to prevent abuse
-- Security Group should restrict access to trusted IPs when possible
-- Never commit your `.env` or secrets to public repositories
-- For production, consider using HTTPS and a reverse proxy (nginx)
+- Webhook requests are validated with `GITHUB_WEBHOOK_SECRET` and the `X-Hub-Signature-256` header.
+- Rate limiting is part of the tracked Flask service baseline.
+- `RATELIMIT_STORAGE_URI` must point to persistent storage in production; `memory://` is reserved for development and tests.
+- Security groups should restrict access to trusted ingress such as a reverse proxy or load balancer.
+- Never commit `.env` files or secrets to public repositories.
+- Use HTTPS termination and operational monitoring before exposing the service beyond a lab environment.
+- Configure allowlist enforcement and `/metrics` token protection before exposing the service beyond a trusted environment.
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 - **Webhook not triggering?**  
   Check your GitHub webhook settings and ensure the event is `issue_comment`.
 - **Service not running?**  
-  Check `sudo systemctl status jira-webhook` and logs with `journalctl`.
+  Check `sudo systemctl status JiraWebhookService` and logs with `journalctl`.
 - **Jira ticket not created?**  
   Verify your Jira credentials and project key in `.env`.
 - **Rate limit errors?**  
-  Wait a minute and try again, or adjust the rate limit in the Flask app if needed.
+  Wait a minute and try again. In production, confirm `RATELIMIT_STORAGE_URI`
+  points to a reachable persistent backend such as Redis.
 
 ---
 
-## 📚 Additional Resources
+## Additional Resources
 
 - [Jira Cloud REST API documentation](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/)
 - [GitHub Webhooks documentation](https://docs.github.com/en/webhooks)
@@ -626,3 +702,11 @@ GITHUB_WEBHOOK_SECRET=webhook_secret_123456
 - [AWS EC2 documentation](https://docs.aws.amazon.com/ec2/)
 
 ---
+### Production bootstrap
+
+- Create `.env` manually and replace every placeholder before any deployment.
+
+### Metrics access
+
+Protect metrics access with `METRICS_TOKEN` and network restrictions when you
+enable that endpoint.
