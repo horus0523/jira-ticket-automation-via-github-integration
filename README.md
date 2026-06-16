@@ -415,14 +415,15 @@ VERSION=1.0.0
 
 ### Setup GitHub Authentication
 
-#### Option A: Personal Access Token (Recommended)
+#### Option A: Fine-grained Personal Access Token
 
 1. Go to [https://github.com/settings/tokens](https://github.com/settings/tokens)
-2. Click "Generate new token"
+2. Click "Generate new token" under fine-grained tokens
 3. Name: "EC2_Development"
-4. Select scopes: **repo** (full control)
-5. Set expiration and generate
-6. **Copy the token immediately**
+4. Limit repository access to the target repository only
+5. Grant only the permissions needed for the action you are taking, such as read/write Contents for an initial push
+6. Set a short expiration and generate
+7. **Copy the token immediately**
 
 #### Option B: SSH Keys (Alternative)
 
@@ -476,8 +477,8 @@ git status
 ```
 
 ```bash
-# If there are uncommitted changes, commit them
-git add .
+# If there are uncommitted changes, stage only intended files
+git add README.md src/ tests/ deployment/ scripts/ requirements.txt .env.example
 git commit -m "Initial commit from cloned repository"
 ```
 
@@ -518,14 +519,12 @@ ssh -T git@github.com
 # Should return: "Hi username! You've successfully authenticated..."
 ```
 
-### Store credentials to avoid repeated prompts (HTTPS only):
+### Avoid persistent credential storage when possible
 
 ```bash
-# Store credentials for future use
-git config --global credential.helper store
-
-# Or use cache (temporary storage)
-git config --global credential.helper cache
+# Prefer SSH keys or a scoped credential manager over plaintext storage.
+# If you need temporary HTTPS caching, scope it to this repository only.
+git config credential.helper 'cache --timeout=900'
 ```
 
 ### "Permission denied" error:
